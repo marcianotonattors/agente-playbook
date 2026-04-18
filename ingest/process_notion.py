@@ -111,8 +111,16 @@ def fetch_table_rows(notion: NotionClient, block_id: str) -> str:
 # Traversal recursivo de blocos com paginação
 # ---------------------------------------------------------------------------
 
+_SKIP_RECURSE_TYPES = {TABLE_BLOCK, "child_database"}
+
+
 def fetch_all_blocks(notion: NotionClient, block_id: str, depth: int = 0) -> list[dict]:
-    """Retorna todos os blocos filhos recursivamente, com paginação."""
+    """Retorna todos os blocos filhos recursivamente, com paginação.
+
+    Não recursiona em TABLE_BLOCK (tratado via fetch_table_rows) nem em
+    child_database (as páginas precisam ser obtidas via databases.query,
+    não via blocks.children.list).
+    """
     results: list[dict] = []
     cursor = None
 
@@ -123,7 +131,7 @@ def fetch_all_blocks(notion: NotionClient, block_id: str, depth: int = 0) -> lis
         resp = notion.blocks.children.list(**kwargs)
         for block in resp["results"]:
             results.append(block)
-            if block.get("has_children") and block.get("type") != TABLE_BLOCK:
+            if block.get("has_children") and block.get("type") not in _SKIP_RECURSE_TYPES:
                 children = fetch_all_blocks(notion, block["id"], depth + 1)
                 results.extend(children)
         if not resp.get("has_more"):
@@ -306,6 +314,58 @@ def save_processed_json(chunks: list[dict], source_name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Processamento recursivo de página com databases aninhados
+# ---------------------------------------------------------------------------
+
+def process_page_to_chunks(
+    notion: NotionClient,
+    page_id: str,
+    title: str,
+    parent_title: str | None = None,
+) -> list[dict]:
+    """Extrai chunks de uma página e de qualquer child_database aninhado nela.
+
+    Isso captura estruturas como:
+      Página (Etapa N)
+        └── child_database (Aulas)
+              └── Página (Aula: Título X)
+    """
+    all_chunks: list[dict] = []
+
+    blocks = fetch_all_blocks(notion, page_id)
+
+    # Conteúdo textual direto da página (ignora child_database — tratado abaixo)
+    text_blocks = [b for b in blocks if b.get("type") != "child_database"]
+    segments = blocks_to_raw_segments(notion, text_blocks)
+    page_chunks = segments_to_chunks(segments)
+    for chunk in page_chunks:
+        chunk["metadata"]["page_title"] = title
+        if parent_title:
+            chunk["metadata"]["parent_title"] = parent_title
+        chunk.setdefault("section", title)
+    all_chunks.extend(page_chunks)
+
+    # Processar child_databases aninhados (ex.: banco de aulas dentro de cada etapa)
+    nested_db_ids = [b["id"] for b in blocks if b.get("type") == "child_database"]
+    for db_id in nested_db_ids:
+        try:
+            sub_pages = fetch_database_pages(notion, db_id)
+            logger.info("  Database aninhado em '%s': %d sub-páginas.", title, len(sub_pages))
+            for sub_page in sub_pages:
+                sub_title = page_title(sub_page)
+                logger.info("    Sub-página: %s", sub_title)
+                try:
+                    sub_chunks = process_page_to_chunks(notion, sub_page["id"], sub_title, title)
+                    all_chunks.extend(sub_chunks)
+                except Exception as exc:
+                    logger.warning("Erro na sub-página '%s': %s", sub_title, exc)
+        except Exception as exc:
+            logger.warning("Erro no database aninhado %s em '%s': %s", db_id, title, exc)
+
+    return all_chunks
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -331,24 +391,17 @@ def main() -> None:
             title = page_title(page)
             logger.info("Processando página: %s", title)
             try:
-                blocks = fetch_all_blocks(notion, page["id"])
-                segments = blocks_to_raw_segments(notion, blocks)
-                page_chunks = segments_to_chunks(segments)
-                for chunk in page_chunks:
-                    chunk["metadata"]["page_title"] = title
-                    chunk.setdefault("section", title)
-                all_chunks.extend(page_chunks)
+                chunks = process_page_to_chunks(notion, page["id"], title)
+                all_chunks.extend(chunks)
             except Exception as exc:
                 logger.warning("Erro ao processar página '%s': %s", title, exc)
 
     else:
         logger.info("Buscando conteúdo da página %s…", args.page_id)
 
-        # Busca blocos diretos da página para encontrar child_databases
+        # Busca blocos diretos da página raiz para encontrar child_databases
         top_blocks = fetch_all_blocks(notion, args.page_id)
-        child_db_ids = [
-            b["id"] for b in top_blocks if b.get("type") == "child_database"
-        ]
+        child_db_ids = [b["id"] for b in top_blocks if b.get("type") == "child_database"]
 
         if child_db_ids:
             logger.info("Encontrados %d databases dentro da página.", len(child_db_ids))
@@ -360,21 +413,15 @@ def main() -> None:
                         title = page_title(page)
                         logger.info("Processando: %s", title)
                         try:
-                            blocks = fetch_all_blocks(notion, page["id"])
-                            segments = blocks_to_raw_segments(notion, blocks)
-                            page_chunks = segments_to_chunks(segments)
-                            for chunk in page_chunks:
-                                chunk["metadata"]["page_title"] = title
-                                chunk.setdefault("section", title)
-                            all_chunks.extend(page_chunks)
+                            chunks = process_page_to_chunks(notion, page["id"], title)
+                            all_chunks.extend(chunks)
                         except Exception as exc:
                             logger.warning("Erro na página '%s': %s", title, exc)
                 except Exception as exc:
                     logger.warning("Erro no database %s: %s", db_id, exc)
         else:
             # Página simples sem databases — ingere o conteúdo direto
-            segments = blocks_to_raw_segments(notion, top_blocks)
-            all_chunks = segments_to_chunks(segments)
+            all_chunks = process_page_to_chunks(notion, args.page_id, args.name)
 
     logger.info("Total de chunks extraídos: %d", len(all_chunks))
 

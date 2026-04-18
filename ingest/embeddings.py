@@ -97,6 +97,17 @@ def delete_chunks_for_source(source_id: str) -> None:
     db.table("knowledge_chunks").delete().eq("source_id", source_id).execute()
 
 
+def _fmt_eta(seconds: float) -> str:
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds}s"
+    m, s = divmod(seconds, 60)
+    if m < 60:
+        return f"{m}m{s:02d}s"
+    h, m = divmod(m, 60)
+    return f"{h}h{m:02d}m"
+
+
 def upsert_chunks(source_id: str, chunks: list[dict]) -> None:
     """
     Recebe lista de chunks com campos:
@@ -105,6 +116,9 @@ def upsert_chunks(source_id: str, chunks: list[dict]) -> None:
     """
     db = _get_supabase()
     batch: list[dict] = []
+    total = len(chunks)
+    start = time.monotonic()
+    log_interval = 10  # loga progresso a cada N chunks
 
     for i, chunk in enumerate(chunks):
         text = chunk["content"]
@@ -123,9 +137,21 @@ def upsert_chunks(source_id: str, chunks: list[dict]) -> None:
         }
         batch.append(row)
 
+        done = i + 1
+        if done % log_interval == 0 or done == total:
+            elapsed = time.monotonic() - start
+            rate = done / elapsed if elapsed > 0 else 0
+            remaining = total - done
+            eta = remaining / rate if rate > 0 else 0
+            pct = done * 100 // total
+            logger.info(
+                "Embeddings: %d/%d (%d%%) | %.1f chunks/min | ETA %s",
+                done, total, pct, rate * 60, _fmt_eta(eta),
+            )
+
         if len(batch) >= 50:
             db.table("knowledge_chunks").insert(batch).execute()
-            logger.info("Inseridos %d chunks…", len(batch))
+            logger.info("Inseridos %d chunks no Supabase…", len(batch))
             batch = []
             time.sleep(0.5)
 
