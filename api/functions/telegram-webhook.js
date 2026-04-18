@@ -16,7 +16,7 @@ const supabase = createClient(
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
 const EMBEDDING_MODEL = "voyage-3";
 const CLAUDE_MODEL = "claude-sonnet-4-6";
-const RAG_MATCH_COUNT = 5;
+const RAG_MATCH_COUNT = 3;
 const RAG_MIN_SIMILARITY = 0.5;
 const MAX_MESSAGE_LENGTH = 2000;
 
@@ -155,7 +155,7 @@ Não use emojis nas respostas. Reserve-os apenas para situações muito específ
 async function callClaude(systemPrompt, conversationHistory) {
   const response = await anthropic.messages.create({
     model: CLAUDE_MODEL,
-    max_tokens: 1024,
+    max_tokens: 512,
     system: systemPrompt,
     messages: conversationHistory,
   });
@@ -167,7 +167,7 @@ async function callClaude(systemPrompt, conversationHistory) {
 // ---------------------------------------------------------------------------
 
 const conversationCache = new Map();
-const MAX_HISTORY_MESSAGES = 20;
+const MAX_HISTORY_MESSAGES = 6;
 
 function getHistory(chatId) {
   return conversationCache.get(String(chatId)) || [];
