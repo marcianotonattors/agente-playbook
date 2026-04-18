@@ -37,18 +37,30 @@ def _get_supabase() -> Client:
     return _supabase
 
 
-def generate_embedding(text: str, retries: int = 3) -> list[float]:
-    """Gera embedding para um texto, com retry em caso de rate limit."""
+REQUESTS_PER_MINUTE = 3
+_MIN_INTERVAL = 60.0 / REQUESTS_PER_MINUTE  # 20s entre chamadas
+_last_request_time: float = 0.0
+
+
+def generate_embedding(text: str, retries: int = 5) -> list[float]:
+    global _last_request_time
     client = _get_voyage()
+
     for attempt in range(retries):
+        # Throttle para respeitar 3 RPM
+        elapsed = time.monotonic() - _last_request_time
+        if elapsed < _MIN_INTERVAL:
+            time.sleep(_MIN_INTERVAL - elapsed)
+
         try:
+            _last_request_time = time.monotonic()
             result = client.embed([text], model=EMBEDDING_MODEL)
             return result.embeddings[0]
         except Exception as exc:
             if attempt == retries - 1:
                 raise
-            wait = 2 ** attempt
-            logger.warning("Embedding falhou (%s), tentando em %ss…", exc, wait)
+            wait = min(2 ** attempt * 20, 120)
+            logger.warning("Embedding falhou (%s), aguardando %ss…", exc, wait)
             time.sleep(wait)
     raise RuntimeError("Embedding não gerado após retries")
 
