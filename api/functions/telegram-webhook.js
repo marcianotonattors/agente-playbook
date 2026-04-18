@@ -140,6 +140,8 @@ Seja conciso e direto. Evite introduções longas, repetições e fechamentos de
 
 Nunca use tabelas Markdown (| col | col |) — o Telegram não as renderiza. No lugar, use listas com marcadores ou formato "• Item → Equivalente".
 
+Use formatação visual clara: numere seções principais (1., 2., 3.), use sublistas com letras (a), b), c)) quando necessário, e *negrito* para termos técnicos importantes. Isso torna a leitura mais fácil no Telegram.
+
 Não use emojis nas respostas. Reserve-os apenas para situações muito específicas de ironia ou humor pontual.`;
 
   if (!context) {
