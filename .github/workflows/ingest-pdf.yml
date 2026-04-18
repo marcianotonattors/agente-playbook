@@ -1,0 +1,47 @@
+name: Ingest PDF
+
+on:
+  push:
+    paths:
+      - 'knowledge/pdfs/**'
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: ingest/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r ingest/requirements.txt
+
+      - name: Ingest new or modified PDFs
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only HEAD~1 HEAD -- 'knowledge/pdfs/' || true)
+          if [ -z "$changed" ]; then
+            echo "Nenhum PDF alterado neste commit."
+            exit 0
+          fi
+          echo "$changed" | while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              echo "Ingerindo: $file"
+              python ingest/process_pdf.py --file "$file" --auto-meta
+            else
+              echo "Arquivo removido (ignorado): $file"
+            fi
+          done

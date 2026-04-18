@@ -1,0 +1,11 @@
+{
+  "name": "bim-consultivo-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "openai": "^4.70.0"
+  }
+}

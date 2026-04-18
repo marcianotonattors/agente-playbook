@@ -1,0 +1,36 @@
+name: Ingest Notion
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Toda segunda-feira às 8h (horário UTC)
+    - cron: '0 8 * * 1'
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: ingest/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r ingest/requirements.txt
+
+      - name: Ingest Notion database
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python ingest/process_notion.py \
+            --database-id "${{ secrets.NOTION_DATABASE_ID }}" \
+            --name "Playbook da Coordenação BIM" \
+            --description "Conteúdo completo das etapas do curso BIM Consultivo"

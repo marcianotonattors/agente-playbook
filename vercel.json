@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/functions/telegram-webhook.js": {
+      "maxDuration": 30
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/telegram",
+      "dest": "/api/functions/telegram-webhook.js"
+    }
+  ]
+}
