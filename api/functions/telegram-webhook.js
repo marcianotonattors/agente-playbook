@@ -84,7 +84,9 @@ Responda com base nos trechos de referência abaixo. Se a resposta estiver nos t
 
 Se não houver trecho suficiente, use seu conhecimento técnico geral mas indique que é um complemento não coberto pelos materiais do curso.
 
-Quando citar algo específico, use o formato: (Fonte: Nome do Documento, Seção X).`;
+Quando citar algo específico, use o formato: (Fonte: Nome do Documento, Seção X).
+
+Não use emojis nas respostas. Reserve-os apenas para situações muito específicas de ironia ou humor pontual.`;
 
   if (!context) {
     return (
