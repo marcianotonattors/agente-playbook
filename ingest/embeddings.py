@@ -37,8 +37,7 @@ def _get_supabase() -> Client:
     return _supabase
 
 
-REQUESTS_PER_MINUTE = 3
-_MIN_INTERVAL = 60.0 / REQUESTS_PER_MINUTE  # 20s entre chamadas
+_MIN_INTERVAL = 1.0  # 1s entre chamadas (conta com cartão cadastrado)
 _last_request_time: float = 0.0
 
 
@@ -47,7 +46,6 @@ def generate_embedding(text: str, retries: int = 5) -> list[float]:
     client = _get_voyage()
 
     for attempt in range(retries):
-        # Throttle para respeitar 3 RPM
         elapsed = time.monotonic() - _last_request_time
         if elapsed < _MIN_INTERVAL:
             time.sleep(_MIN_INTERVAL - elapsed)
@@ -59,7 +57,7 @@ def generate_embedding(text: str, retries: int = 5) -> list[float]:
         except Exception as exc:
             if attempt == retries - 1:
                 raise
-            wait = min(2 ** attempt * 20, 120)
+            wait = min(2 ** attempt * 5, 60)
             logger.warning("Embedding falhou (%s), aguardando %ss…", exc, wait)
             time.sleep(wait)
     raise RuntimeError("Embedding não gerado após retries")
