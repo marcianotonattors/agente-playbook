@@ -24,6 +24,7 @@ import tempfile
 from pathlib import Path
 
 import pdfplumber
+import requests
 import tiktoken
 from anthropic import Anthropic
 from PIL import Image
@@ -321,9 +322,27 @@ def save_processed_json(chunks: list[dict], source_name: str) -> None:
 # Entry point
 # ---------------------------------------------------------------------------
 
+def download_from_supabase(filename: str) -> str:
+    """Baixa PDF do Supabase Storage e salva em arquivo temporário. Retorna o caminho."""
+    url = f"{os.environ['SUPABASE_URL']}/storage/v1/object/pdfs/{filename}"
+    headers = {"Authorization": f"Bearer {os.environ['SUPABASE_SERVICE_KEY']}"}
+    logger.info("Baixando '%s' do Supabase Storage…", filename)
+    response = requests.get(url, headers=headers, timeout=300)
+    if response.status_code != 200:
+        logger.error("Falha ao baixar arquivo: HTTP %d", response.status_code)
+        sys.exit(1)
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    tmp.write(response.content)
+    tmp.close()
+    logger.info("Arquivo salvo temporariamente em %s", tmp.name)
+    return tmp.name
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ingere PDF no Knowledge Base RAG.")
-    parser.add_argument("--file", required=True, help="Caminho para o PDF")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--file", help="Caminho local para o PDF")
+    source.add_argument("--supabase-file", help="Nome do arquivo no Supabase Storage bucket 'pdfs'")
     parser.add_argument("--name", help="Nome do documento (ex: 'ISO 19650-2 PT-BR')")
     parser.add_argument("--description", help="Descrição do documento")
     parser.add_argument("--version", help="Versão do documento")
@@ -339,12 +358,18 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not os.path.isfile(args.file):
-        logger.error("Arquivo não encontrado: %s", args.file)
-        sys.exit(1)
+    if args.supabase_file:
+        file_path = download_from_supabase(args.supabase_file)
+        original_filename = args.supabase_file
+    else:
+        file_path = args.file
+        original_filename = args.file
+        if not os.path.isfile(file_path):
+            logger.error("Arquivo não encontrado: %s", file_path)
+            sys.exit(1)
 
     if args.auto_meta:
-        meta = infer_meta_from_filename(args.file)
+        meta = infer_meta_from_filename(original_filename)
         name = args.name or meta["name"]
         description = args.description or meta["description"]
         version = args.version or meta["version"]
@@ -356,8 +381,8 @@ def main() -> None:
         description = args.description
         version = args.version
 
-    logger.info("Processando '%s'…", args.file)
-    chunks = process_pdf(args.file, name, description, version)
+    logger.info("Processando '%s'…", file_path)
+    chunks = process_pdf(file_path, name, description, version)
 
     if args.save_json:
         save_processed_json(chunks, name)
@@ -366,7 +391,7 @@ def main() -> None:
     source_id = upsert_source(
         name=name,
         source_type="pdf",
-        filename=os.path.basename(args.file),
+        filename=os.path.basename(original_filename),
         description=description,
         version=version,
     )
