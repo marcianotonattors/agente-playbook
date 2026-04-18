@@ -111,7 +111,7 @@ def fetch_table_rows(notion: NotionClient, block_id: str) -> str:
 # Traversal recursivo de blocos com paginação
 # ---------------------------------------------------------------------------
 
-_SKIP_RECURSE_TYPES = {TABLE_BLOCK, "child_database"}
+_SKIP_RECURSE_TYPES = {TABLE_BLOCK, "child_database", "linked_to_database"}
 
 
 def fetch_all_blocks(notion: NotionClient, block_id: str, depth: int = 0) -> list[dict]:
@@ -334,8 +334,14 @@ def process_page_to_chunks(
 
     blocks = fetch_all_blocks(notion, page_id)
 
-    # Conteúdo textual direto da página (ignora child_database — tratado abaixo)
-    text_blocks = [b for b in blocks if b.get("type") != "child_database"]
+    # Diagnóstico: log dos tipos de bloco encontrados
+    from collections import Counter
+    type_counts = Counter(b.get("type") for b in blocks)
+    logger.info("  Tipos de bloco em '%s': %s", title, dict(type_counts))
+
+    # Conteúdo textual direto da página (ignora child_database e linked_to_database — tratados abaixo)
+    DB_TYPES = {"child_database", "linked_to_database"}
+    text_blocks = [b for b in blocks if b.get("type") not in DB_TYPES]
     segments = blocks_to_raw_segments(notion, text_blocks)
     page_chunks = segments_to_chunks(segments)
     for chunk in page_chunks:
@@ -345,8 +351,8 @@ def process_page_to_chunks(
         chunk.setdefault("section", title)
     all_chunks.extend(page_chunks)
 
-    # Processar child_databases aninhados (ex.: banco de aulas dentro de cada etapa)
-    nested_db_ids = [b["id"] for b in blocks if b.get("type") == "child_database"]
+    # Processar databases aninhados (child_database ou linked_to_database)
+    nested_db_ids = [b["id"] for b in blocks if b.get("type") in DB_TYPES]
     for db_id in nested_db_ids:
         try:
             sub_pages = fetch_database_pages(notion, db_id)
