@@ -155,7 +155,7 @@ Não use emojis nas respostas. Reserve-os apenas para situações muito específ
 async function callClaude(systemPrompt, conversationHistory) {
   const response = await anthropic.messages.create({
     model: CLAUDE_MODEL,
-    max_tokens: 512,
+    max_tokens: 768,
     system: systemPrompt,
     messages: conversationHistory,
   });
