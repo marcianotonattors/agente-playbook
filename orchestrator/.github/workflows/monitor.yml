@@ -1,0 +1,37 @@
+name: Monitor Proativo
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # a cada 30 minutos
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Restaurar estado do monitor
+        uses: actions/cache@v4
+        with:
+          path: /tmp/orchestrator_monitor_state.json
+          key: monitor-state-${{ github.run_number }}
+          restore-keys: monitor-state-
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Executar monitor
+        run: python scripts/monitor.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VERCEL_URL: ${{ secrets.VERCEL_URL }}
+          PLAYBOOK_REPO: marcianotonattors/agente-playbook
+          GITHUB_ISSUES_REPO: ${{ github.repository }}

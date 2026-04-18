@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "api/telegram.py": {
+      "runtime": "python3.9",
+      "maxDuration": 30
+    }
+  },
+  "routes": [
+    { "src": "/api/telegram", "dest": "api/telegram.py" },
+    { "src": "/health", "dest": "api/telegram.py" }
+  ]
+}
