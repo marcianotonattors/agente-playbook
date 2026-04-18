@@ -6,6 +6,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.0",
     "@supabase/supabase-js": "^2.45.0",
-    "openai": "^4.70.0"
+    "voyageai": "^0.0.5"
   }
 }

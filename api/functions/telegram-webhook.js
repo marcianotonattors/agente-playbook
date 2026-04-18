@@ -5,17 +5,17 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
-import OpenAI from "openai";
+import VoyageAI from "voyageai";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const voyage = new VoyageAI({ apiKey: process.env.VOYAGE_API_KEY });
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
-const EMBEDDING_MODEL = "text-embedding-3-small";
+const EMBEDDING_MODEL = "voyage-3";
 const CLAUDE_MODEL = "claude-sonnet-4-6";
 const RAG_MATCH_COUNT = 5;
 const RAG_MIN_SIMILARITY = 0.7;
@@ -25,12 +25,11 @@ const RAG_MIN_SIMILARITY = 0.7;
 // ---------------------------------------------------------------------------
 
 async function generateEmbedding(text) {
-  const response = await openai.embeddings.create({
+  const response = await voyage.embed({
+    input: [text],
     model: EMBEDDING_MODEL,
-    input: text,
-    dimensions: 1536,
   });
-  return response.data[0].embedding;
+  return response.embeddings[0];
 }
 
 // ---------------------------------------------------------------------------

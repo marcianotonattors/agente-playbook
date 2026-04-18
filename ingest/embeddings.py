@@ -8,23 +8,23 @@ import time
 import logging
 from typing import Any
 
-from openai import OpenAI
+import voyageai
 from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
 
-_openai: OpenAI | None = None
+_voyage: voyageai.Client | None = None
 _supabase: Client | None = None
 
-EMBEDDING_MODEL = "text-embedding-3-small"
-EMBEDDING_DIM = 1536
+EMBEDDING_MODEL = "voyage-3"
+EMBEDDING_DIM = 1024
 
 
-def _get_openai() -> OpenAI:
-    global _openai
-    if _openai is None:
-        _openai = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-    return _openai
+def _get_voyage() -> voyageai.Client:
+    global _voyage
+    if _voyage is None:
+        _voyage = voyageai.Client(api_key=os.environ["VOYAGE_API_KEY"])
+    return _voyage
 
 
 def _get_supabase() -> Client:
@@ -39,15 +39,11 @@ def _get_supabase() -> Client:
 
 def generate_embedding(text: str, retries: int = 3) -> list[float]:
     """Gera embedding para um texto, com retry em caso de rate limit."""
-    client = _get_openai()
+    client = _get_voyage()
     for attempt in range(retries):
         try:
-            response = client.embeddings.create(
-                model=EMBEDDING_MODEL,
-                input=text,
-                dimensions=EMBEDDING_DIM,
-            )
-            return response.data[0].embedding
+            result = client.embed([text], model=EMBEDDING_MODEL)
+            return result.embeddings[0]
         except Exception as exc:
             if attempt == retries - 1:
                 raise

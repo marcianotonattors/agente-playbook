@@ -22,7 +22,7 @@ create table if not exists knowledge_chunks (
   id          uuid primary key default gen_random_uuid(),
   source_id   uuid references knowledge_sources(id) on delete cascade,
   content     text not null,
-  embedding   vector(1536),
+  embedding   vector(1024),
   chunk_index int,
   chunk_type  text default 'text' check (chunk_type in ('text', 'table', 'image_description', 'heading')),
   page_number int,
@@ -39,7 +39,7 @@ create index if not exists knowledge_chunks_embedding_idx
 
 -- 5. Função RPC de busca semântica
 create or replace function search_chunks(
-  query_embedding vector(1536),
+  query_embedding vector(1024),
   match_count      int default 5,
   min_similarity   float default 0.70
 )
