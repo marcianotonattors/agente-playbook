@@ -198,9 +198,6 @@ export default async function handler(req, res) {
   const chatId = message.chat.id;
   const userMessage = message.text.trim();
 
-  // Responde ao Telegram imediatamente (evita retry por timeout)
-  res.status(200).json({ ok: true });
-
   try {
     const reply = await handleMessage(chatId, userMessage);
     await sendTelegramMessage(chatId, reply);
@@ -211,4 +208,6 @@ export default async function handler(req, res) {
       "Desculpe, ocorreu um erro ao processar sua pergunta. Tente novamente em instantes."
     );
   }
+
+  return res.status(200).json({ ok: true });
 }
