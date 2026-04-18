@@ -138,6 +138,8 @@ Quando citar algo específico, use o formato: (Fonte: Nome do Documento, Seção
 
 Seja conciso e direto. Evite introduções longas, repetições e fechamentos desnecessários. Priorize precisão técnica sobre extensão — uma resposta curta e completa é melhor que uma longa e truncada.
 
+Nunca use tabelas Markdown (| col | col |) — o Telegram não as renderiza. No lugar, use listas com marcadores ou formato "• Item → Equivalente".
+
 Não use emojis nas respostas. Reserve-os apenas para situações muito específicas de ironia ou humor pontual.`;
 
   if (!context) {
