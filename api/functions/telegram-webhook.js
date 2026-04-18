@@ -136,6 +136,8 @@ Se não houver trecho suficiente, use seu conhecimento técnico geral mas indiqu
 
 Quando citar algo específico, use o formato: (Fonte: Nome do Documento, Seção X).
 
+Seja conciso e direto. Evite introduções longas, repetições e fechamentos desnecessários. Priorize precisão técnica sobre extensão — uma resposta curta e completa é melhor que uma longa e truncada.
+
 Não use emojis nas respostas. Reserve-os apenas para situações muito específicas de ironia ou humor pontual.`;
 
   if (!context) {
