@@ -310,38 +310,71 @@ def save_processed_json(chunks: list[dict], source_name: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Ingere Notion database no Knowledge Base RAG.")
-    parser.add_argument("--database-id", required=True, help="ID do database Notion")
+    parser = argparse.ArgumentParser(description="Ingere Notion page ou database no Knowledge Base RAG.")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--database-id", help="ID do database Notion")
+    group.add_argument("--page-id", help="ID da página Notion")
     parser.add_argument("--name", required=True, help="Nome da fonte (ex: 'Playbook da Coordenação BIM')")
     parser.add_argument("--description", help="Descrição da fonte")
     parser.add_argument("--save-json", action="store_true", help="Salva chunks em knowledge/processed/")
     args = parser.parse_args()
 
     notion = _get_notion()
-
-    logger.info("Buscando páginas do database %s…", args.database_id)
-    pages = fetch_database_pages(notion, args.database_id)
-    logger.info("Encontradas %d páginas.", len(pages))
-
     all_chunks: list[dict] = []
 
-    for page in pages:
-        title = page_title(page)
-        logger.info("Processando página: %s", title)
+    if args.database_id:
+        logger.info("Buscando páginas do database %s…", args.database_id)
+        pages = fetch_database_pages(notion, args.database_id)
+        logger.info("Encontradas %d páginas.", len(pages))
 
-        try:
-            blocks = fetch_all_blocks(notion, page["id"])
-            segments = blocks_to_raw_segments(notion, blocks)
-            page_chunks = segments_to_chunks(segments)
+        for page in pages:
+            title = page_title(page)
+            logger.info("Processando página: %s", title)
+            try:
+                blocks = fetch_all_blocks(notion, page["id"])
+                segments = blocks_to_raw_segments(notion, blocks)
+                page_chunks = segments_to_chunks(segments)
+                for chunk in page_chunks:
+                    chunk["metadata"]["page_title"] = title
+                    chunk.setdefault("section", title)
+                all_chunks.extend(page_chunks)
+            except Exception as exc:
+                logger.warning("Erro ao processar página '%s': %s", title, exc)
 
-            # Adiciona título da página como metadado
-            for chunk in page_chunks:
-                chunk["metadata"]["page_title"] = title
-                chunk.setdefault("section", title)
+    else:
+        logger.info("Buscando conteúdo da página %s…", args.page_id)
 
-            all_chunks.extend(page_chunks)
-        except Exception as exc:
-            logger.warning("Erro ao processar página '%s': %s", title, exc)
+        # Busca blocos diretos da página para encontrar child_databases
+        top_blocks = fetch_all_blocks(notion, args.page_id)
+        child_db_ids = [
+            b["id"] for b in top_blocks if b.get("type") == "child_database"
+        ]
+
+        if child_db_ids:
+            logger.info("Encontrados %d databases dentro da página.", len(child_db_ids))
+            for db_id in child_db_ids:
+                try:
+                    pages = fetch_database_pages(notion, db_id)
+                    logger.info("Database %s: %d páginas.", db_id, len(pages))
+                    for page in pages:
+                        title = page_title(page)
+                        logger.info("Processando: %s", title)
+                        try:
+                            blocks = fetch_all_blocks(notion, page["id"])
+                            segments = blocks_to_raw_segments(notion, blocks)
+                            page_chunks = segments_to_chunks(segments)
+                            for chunk in page_chunks:
+                                chunk["metadata"]["page_title"] = title
+                                chunk.setdefault("section", title)
+                            all_chunks.extend(page_chunks)
+                        except Exception as exc:
+                            logger.warning("Erro na página '%s': %s", title, exc)
+                except Exception as exc:
+                    logger.warning("Erro no database %s: %s", db_id, exc)
+        else:
+            # Página simples sem databases — ingere o conteúdo direto
+            segments = blocks_to_raw_segments(notion, top_blocks)
+            all_chunks = segments_to_chunks(segments)
 
     logger.info("Total de chunks extraídos: %d", len(all_chunks))
 

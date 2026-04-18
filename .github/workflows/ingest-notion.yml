@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r ingest/requirements.txt
 
-      - name: Ingest Notion database
+      - name: Ingest Notion page
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
@@ -31,6 +31,6 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
           python ingest/process_notion.py \
-            --database-id "${{ secrets.NOTION_DATABASE_ID }}" \
+            --page-id "${{ secrets.NOTION_DATABASE_ID }}" \
             --name "Playbook da Coordenação BIM" \
             --description "Conteúdo completo das etapas do curso BIM Consultivo"
