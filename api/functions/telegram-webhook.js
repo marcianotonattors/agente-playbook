@@ -5,10 +5,8 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
-import VoyageAI from "voyageai";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const voyage = new VoyageAI({ apiKey: process.env.VOYAGE_API_KEY });
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
@@ -25,11 +23,16 @@ const RAG_MIN_SIMILARITY = 0.7;
 // ---------------------------------------------------------------------------
 
 async function generateEmbedding(text) {
-  const response = await voyage.embed({
-    input: [text],
-    model: EMBEDDING_MODEL,
+  const response = await fetch("https://api.voyageai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.VOYAGE_API_KEY}`,
+    },
+    body: JSON.stringify({ input: [text], model: EMBEDDING_MODEL }),
   });
-  return response.embeddings[0];
+  const data = await response.json();
+  return data.data[0].embedding;
 }
 
 // ---------------------------------------------------------------------------
