@@ -136,7 +136,7 @@ Se não houver trecho suficiente, use seu conhecimento técnico geral mas indiqu
 
 Quando citar algo específico, use o formato: (Fonte: Nome do Documento, Seção X).
 
-Seja conciso e direto. Evite introduções longas, repetições e fechamentos desnecessários. Priorize precisão técnica sobre extensão — uma resposta curta e completa é melhor que uma longa e truncada.
+Seja extremamente conciso. Máximo 3 pontos por seção. Sem introduções, sem conclusões, sem exemplos extras. Vá direto ao ponto técnico.
 
 Nunca use tabelas Markdown (| col | col |) — o Telegram não as renderiza. No lugar, use listas com marcadores ou formato "• Item → Equivalente".
 
@@ -161,7 +161,7 @@ Não use emojis nas respostas. Reserve-os apenas para situações muito específ
 async function callClaude(systemPrompt, conversationHistory) {
   const response = await anthropic.messages.create({
     model: CLAUDE_MODEL,
-    max_tokens: 768,
+    max_tokens: 500,
     system: systemPrompt,
     messages: conversationHistory,
   });
