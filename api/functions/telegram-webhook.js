@@ -17,7 +17,7 @@ const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOK
 const EMBEDDING_MODEL = "voyage-3";
 const CLAUDE_MODEL = "claude-sonnet-4-6";
 const RAG_MATCH_COUNT = 5;
-const RAG_MIN_SIMILARITY = 0.7;
+const RAG_MIN_SIMILARITY = 0.5;
 const MAX_MESSAGE_LENGTH = 2000;
 
 // ---------------------------------------------------------------------------
