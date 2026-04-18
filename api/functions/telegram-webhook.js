@@ -5,6 +5,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
+import { createHmac } from "crypto";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const supabase = createClient(
@@ -17,6 +18,53 @@ const EMBEDDING_MODEL = "voyage-3";
 const CLAUDE_MODEL = "claude-sonnet-4-6";
 const RAG_MATCH_COUNT = 5;
 const RAG_MIN_SIMILARITY = 0.7;
+const MAX_MESSAGE_LENGTH = 2000;
+
+// ---------------------------------------------------------------------------
+// Validação do webhook do Telegram
+// ---------------------------------------------------------------------------
+
+function validateTelegramRequest(req) {
+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (!secret) return true; // se não configurado, não bloqueia (compatibilidade)
+
+  const token = req.headers["x-telegram-bot-api-secret-token"];
+  if (!token) return false;
+
+  // Comparação segura contra timing attacks
+  const expected = createHmac("sha256", "WebAppData")
+    .update(secret)
+    .digest("hex");
+  const provided = createHmac("sha256", "WebAppData")
+    .update(token)
+    .digest("hex");
+
+  return expected === provided;
+}
+
+// ---------------------------------------------------------------------------
+// Rate limiting em memória (por chat_id)
+// ---------------------------------------------------------------------------
+
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minuto
+const RATE_LIMIT_MAX_REQUESTS = 10;
+
+function isRateLimited(chatId) {
+  const key = String(chatId);
+  const now = Date.now();
+  const entry = rateLimitMap.get(key) || { count: 0, windowStart: now };
+
+  if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    entry.count = 1;
+    entry.windowStart = now;
+  } else {
+    entry.count += 1;
+  }
+
+  rateLimitMap.set(key, entry);
+  return entry.count > RATE_LIMIT_MAX_REQUESTS;
+}
 
 // ---------------------------------------------------------------------------
 // Embeddings
@@ -114,7 +162,6 @@ async function callClaude(systemPrompt, conversationHistory) {
 
 // ---------------------------------------------------------------------------
 // Gerenciamento de histórico de conversa (em memória por sessão)
-// Em produção, armazenar no Supabase por chat_id
 // ---------------------------------------------------------------------------
 
 const conversationCache = new Map();
@@ -131,7 +178,6 @@ function updateHistory(chatId, userMessage, assistantReply) {
     { role: "user", content: userMessage },
     { role: "assistant", content: assistantReply }
   );
-  // Mantém janela deslizante
   if (history.length > MAX_HISTORY_MESSAGES) {
     history.splice(0, history.length - MAX_HISTORY_MESSAGES);
   }
@@ -159,26 +205,14 @@ async function sendTelegramMessage(chatId, text) {
 // ---------------------------------------------------------------------------
 
 async function handleMessage(chatId, userMessage) {
-  // 1. Gerar embedding da pergunta
   const queryEmbedding = await generateEmbedding(userMessage);
-
-  // 2. Buscar chunks relevantes
   const chunks = await searchChunks(queryEmbedding);
-
-  // 3. Montar contexto e system prompt
   const context = buildContext(chunks);
   const systemPrompt = buildSystemPrompt(context);
-
-  // 4. Histórico de conversa
   const history = getHistory(chatId);
   const messages = [...history, { role: "user", content: userMessage }];
-
-  // 5. Chamar Claude
   const reply = await callClaude(systemPrompt, messages);
-
-  // 6. Atualizar histórico
   updateHistory(chatId, userMessage, reply);
-
   return reply;
 }
 
@@ -191,16 +225,26 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const body = req.body;
+  if (!validateTelegramRequest(req)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
-  // Ignora atualizações sem mensagem de texto
+  const body = req.body;
   const message = body?.message;
   if (!message?.text) {
     return res.status(200).json({ ok: true });
   }
 
   const chatId = message.chat.id;
-  const userMessage = message.text.trim();
+  const userMessage = message.text.trim().slice(0, MAX_MESSAGE_LENGTH);
+
+  if (isRateLimited(chatId)) {
+    await sendTelegramMessage(
+      chatId,
+      "Muitas mensagens em pouco tempo. Aguarde um momento antes de continuar."
+    );
+    return res.status(200).json({ ok: true });
+  }
 
   try {
     const reply = await handleMessage(chatId, userMessage);
