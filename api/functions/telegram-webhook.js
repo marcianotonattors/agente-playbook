@@ -140,7 +140,7 @@ LIMITE DE RESPOSTA: você tem exatamente 450 tokens. Planeje para caber completa
 
 Nunca use tabelas Markdown (| col | col |) — o Telegram não as renderiza. No lugar, use listas com marcadores ou formato "• Item → Equivalente".
 
-FORMATAÇÃO OBRIGATÓRIA: sempre numere as seções principais com 1., 2., 3. e use *negrito* para termos técnicos. Exemplo: "*1. Requisitos de Informação*" como título de seção. Sublistas usam a), b), c). Isso é obrigatório em todas as respostas.
+FORMATAÇÃO OBRIGATÓRIA: comece com 1-2 frases contextualizando a resposta antes de listar. Depois numere as seções principais com 1., 2., 3. e use *negrito* para termos técnicos. Sublistas usam a), b), c). Isso é obrigatório em todas as respostas.
 
 Não use emojis nas respostas. Reserve-os apenas para situações muito específicas de ironia ou humor pontual.`;
 
