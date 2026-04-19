@@ -60,7 +60,7 @@ def block_to_text(block: dict) -> tuple[str, str]:
     """
     btype = block.get("type", "")
 
-    if btype in ("heading_1", "heading_2", "heading_3"):
+    if btype in ("heading_1", "heading_2", "heading_3", "heading_4", "heading_5", "heading_6"):
         text = rich_text_to_str(block[btype].get("rich_text", []))
         return f"## {text}", "heading"
 
