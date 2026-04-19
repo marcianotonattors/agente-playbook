@@ -16,8 +16,8 @@ const supabase = createClient(
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
 const EMBEDDING_MODEL = "voyage-3";
 const CLAUDE_MODEL = "claude-sonnet-4-6";
-const RAG_MATCH_COUNT = 8;
-const RAG_MIN_SIMILARITY = 0.5;
+const RAG_MATCH_COUNT = 10;
+const RAG_MIN_SIMILARITY = 0.4;
 const MAX_MESSAGE_LENGTH = 2000;
 
 // ---------------------------------------------------------------------------
@@ -87,7 +87,7 @@ async function generateEmbedding(text) {
 // Busca vetorial no Supabase
 // ---------------------------------------------------------------------------
 
-async function searchChunks(queryEmbedding) {
+async function searchChunks(queryEmbedding, queryText) {
   const { data, error } = await supabase.rpc("search_chunks", {
     query_embedding: queryEmbedding,
     match_count: RAG_MATCH_COUNT,
@@ -97,7 +97,33 @@ async function searchChunks(queryEmbedding) {
     console.error("Erro na busca vetorial:", error);
     return [];
   }
-  return data || [];
+  const semantic = data || [];
+
+  // Busca por palavra-chave para complementar quando semântica não basta
+  const keywords = queryText
+    .toLowerCase()
+    .replace(/[^\w\sáéíóúãõâêîôûàèìòùç]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 3)
+    .slice(0, 4);
+
+  if (!keywords.length) return semantic;
+
+  const filter = keywords.map((k) => `content.ilike.%${k}%`).join(",");
+  const { data: kw } = await supabase
+    .from("knowledge_chunks")
+    .select("id, content, chunk_type, section, metadata, source_id")
+    .or(filter)
+    .limit(5);
+
+  if (!kw?.length) return semantic;
+
+  const seenIds = new Set(semantic.map((c) => c.id));
+  const extra = kw
+    .filter((c) => !seenIds.has(c.id))
+    .map((c) => ({ ...c, similarity: 0, source_name: "Playbook da Coordenação BIM" }));
+
+  return [...semantic, ...extra];
 }
 
 // ---------------------------------------------------------------------------
@@ -214,7 +240,7 @@ async function sendTelegramMessage(chatId, text) {
 
 async function handleMessage(chatId, userMessage) {
   const queryEmbedding = await generateEmbedding(userMessage);
-  const chunks = await searchChunks(queryEmbedding);
+  const chunks = await searchChunks(queryEmbedding, userMessage);
   const context = buildContext(chunks);
   const systemPrompt = buildSystemPrompt(context);
   const history = getHistory(chatId);
