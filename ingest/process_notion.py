@@ -113,13 +113,17 @@ def fetch_table_rows(notion: NotionClient, block_id: str) -> str:
 
 _SKIP_RECURSE_TYPES = {TABLE_BLOCK, "child_database", "linked_to_database"}
 
+# Tipos onde sempre tentamos buscar filhos mesmo que has_children=False
+# (Notion tabs retornam has_children=False mas têm conteúdo acessível)
+_FORCE_FETCH_TYPES = {"tab"}
+
 
 def fetch_all_blocks(notion: NotionClient, block_id: str, depth: int = 0) -> list[dict]:
     """Retorna todos os blocos filhos recursivamente, com paginação.
 
     Não recursiona em TABLE_BLOCK (tratado via fetch_table_rows) nem em
-    child_database (as páginas precisam ser obtidas via databases.query,
-    não via blocks.children.list).
+    child_database/linked_to_database (páginas obtidas via databases.query).
+    Força recursão em 'tab' mesmo que has_children=False.
     """
     results: list[dict] = []
     cursor = None
@@ -131,9 +135,16 @@ def fetch_all_blocks(notion: NotionClient, block_id: str, depth: int = 0) -> lis
         resp = notion.blocks.children.list(**kwargs)
         for block in resp["results"]:
             results.append(block)
-            if block.get("has_children") and block.get("type") not in _SKIP_RECURSE_TYPES:
-                children = fetch_all_blocks(notion, block["id"], depth + 1)
-                results.extend(children)
+            btype = block.get("type", "")
+            should_recurse = (
+                block.get("has_children") and btype not in _SKIP_RECURSE_TYPES
+            ) or btype in _FORCE_FETCH_TYPES
+            if should_recurse:
+                try:
+                    children = fetch_all_blocks(notion, block["id"], depth + 1)
+                    results.extend(children)
+                except Exception as exc:
+                    logger.debug("Não foi possível buscar filhos de %s (%s): %s", btype, block["id"], exc)
         if not resp.get("has_more"):
             break
         cursor = resp["next_cursor"]
@@ -338,6 +349,8 @@ def process_page_to_chunks(
     from collections import Counter
     type_counts = Counter(b.get("type") for b in blocks)
     logger.info("  Tipos de bloco em '%s': %s", title, dict(type_counts))
+    for tb in (b for b in blocks if b.get("type") == "tab"):
+        logger.info("  TAB block %s has_children=%s", tb["id"], tb.get("has_children"))
 
     # Conteúdo textual direto da página (ignora child_database e linked_to_database — tratados abaixo)
     DB_TYPES = {"child_database", "linked_to_database"}
