@@ -345,13 +345,6 @@ def process_page_to_chunks(
 
     blocks = fetch_all_blocks(notion, page_id)
 
-    # Diagnóstico: log dos tipos de bloco encontrados
-    from collections import Counter
-    type_counts = Counter(b.get("type") for b in blocks)
-    logger.info("  Tipos de bloco em '%s': %s", title, dict(type_counts))
-    for tb in (b for b in blocks if b.get("type") == "tab"):
-        logger.info("  TAB block %s has_children=%s", tb["id"], tb.get("has_children"))
-
     # Conteúdo textual direto da página (ignora child_database e linked_to_database — tratados abaixo)
     DB_TYPES = {"child_database", "linked_to_database"}
     text_blocks = [b for b in blocks if b.get("type") not in DB_TYPES]
