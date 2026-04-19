@@ -73,6 +73,47 @@ def block_to_text(block: dict) -> tuple[str, str]:
         lang = block[CODE_BLOCK].get("language", "")
         return f"```{lang}\n{text}\n```", "text"
 
+    if btype == "to_do":
+        text = rich_text_to_str(block["to_do"].get("rich_text", []))
+        checked = block["to_do"].get("checked", False)
+        return f"[{'x' if checked else ' '}] {text}", "text"
+
+    if btype == "child_page":
+        title = block["child_page"].get("title", "")
+        return f"## {title}", "heading"
+
+    if btype == "file":
+        data = block["file"]
+        name = data.get("name", "arquivo")
+        caption = rich_text_to_str(data.get("caption", []))
+        url = data.get("external", {}).get("url") or data.get("file", {}).get("url", "")
+        parts = [f"Arquivo: {name}"]
+        if caption:
+            parts.append(caption)
+        if url:
+            parts.append(f"URL: {url}")
+        return "\n".join(parts), "text"
+
+    if btype == "bookmark":
+        data = block["bookmark"]
+        url = data.get("url", "")
+        caption = rich_text_to_str(data.get("caption", []))
+        return f"Link: {caption or url}\nURL: {url}", "text"
+
+    if btype == "link_preview":
+        url = block["link_preview"].get("url", "")
+        return f"Link: {url}", "text"
+
+    if btype == "image":
+        data = block["image"]
+        caption = rich_text_to_str(data.get("caption", []))
+        url = data.get("external", {}).get("url") or data.get("file", {}).get("url", "")
+        if caption:
+            return f"[Imagem] {caption}", "text"
+        if url:
+            return f"[Imagem: {url}]", "text"
+        return "", "text"
+
     return "", "text"
 
 
@@ -344,13 +385,6 @@ def process_page_to_chunks(
     all_chunks: list[dict] = []
 
     blocks = fetch_all_blocks(notion, page_id)
-
-    # Diagnóstico: log dos tipos de bloco encontrados
-    from collections import Counter
-    type_counts = Counter(b.get("type") for b in blocks)
-    logger.info("  Tipos de bloco em '%s': %s", title, dict(type_counts))
-    for tb in (b for b in blocks if b.get("type") == "tab"):
-        logger.info("  TAB block %s has_children=%s", tb["id"], tb.get("has_children"))
 
     # Conteúdo textual direto da página (ignora child_database e linked_to_database — tratados abaixo)
     DB_TYPES = {"child_database", "linked_to_database"}
