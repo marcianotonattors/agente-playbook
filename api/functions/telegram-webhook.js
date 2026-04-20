@@ -195,27 +195,26 @@ async function callClaude(systemPrompt, conversationHistory) {
 }
 
 // ---------------------------------------------------------------------------
-// Gerenciamento de histórico de conversa (em memória por sessão)
+// Gerenciamento de histórico de conversa (persistido no Supabase)
 // ---------------------------------------------------------------------------
 
-const conversationCache = new Map();
 const MAX_HISTORY_MESSAGES = 6;
 
-function getHistory(chatId) {
-  return conversationCache.get(String(chatId)) || [];
+async function getHistory(chatId) {
+  const { data } = await supabase
+    .from("conversation_history")
+    .select("role, content")
+    .eq("chat_id", String(chatId))
+    .order("created_at", { ascending: false })
+    .limit(MAX_HISTORY_MESSAGES);
+  return (data || []).reverse();
 }
 
-function updateHistory(chatId, userMessage, assistantReply) {
-  const key = String(chatId);
-  const history = conversationCache.get(key) || [];
-  history.push(
-    { role: "user", content: userMessage },
-    { role: "assistant", content: assistantReply }
-  );
-  if (history.length > MAX_HISTORY_MESSAGES) {
-    history.splice(0, history.length - MAX_HISTORY_MESSAGES);
-  }
-  conversationCache.set(key, history);
+async function updateHistory(chatId, userMessage, assistantReply) {
+  await supabase.from("conversation_history").insert([
+    { chat_id: String(chatId), role: "user", content: userMessage },
+    { chat_id: String(chatId), role: "assistant", content: assistantReply },
+  ]);
 }
 
 // ---------------------------------------------------------------------------
@@ -243,10 +242,10 @@ async function handleMessage(chatId, userMessage) {
   const chunks = await searchChunks(queryEmbedding, userMessage);
   const context = buildContext(chunks);
   const systemPrompt = buildSystemPrompt(context);
-  const history = getHistory(chatId);
+  const history = await getHistory(chatId);
   const messages = [...history, { role: "user", content: userMessage }];
   const reply = await callClaude(systemPrompt, messages);
-  updateHistory(chatId, userMessage, reply);
+  await updateHistory(chatId, userMessage, reply);
   return reply;
 }
 
