@@ -71,6 +71,14 @@ except ImportError:
 # Parsing HTML
 # ---------------------------------------------------------------------------
 
+_URL_RE = re.compile(r"https?://\S{60,}")  # remove URLs longas (ex: S3 signed URLs)
+
+
+def _clean(text: str) -> str:
+    text = _URL_RE.sub("", text)
+    return " ".join(text.split())  # colapsa espaços extras
+
+
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 SKIP_TAGS = {"script", "style", "head", "nav", "footer"}
 SKIP_CLASSES = {
@@ -117,7 +125,7 @@ def _walk(element, segments: list, section_ref: list, source_file: str) -> None:
             continue
 
         if tag in HEADING_TAGS:
-            text = child.get_text(strip=True)
+            text = _clean(child.get_text(strip=True))
             if text:
                 section_ref[0] = text
                 segments.append({
@@ -143,7 +151,7 @@ def _walk(element, segments: list, section_ref: list, source_file: str) -> None:
                 continue
             caption = child.find("figcaption")
             if caption:
-                text = caption.get_text(separator=" ", strip=True)
+                text = _clean(caption.get_text(separator=" ", strip=True))
                 if text:
                     segments.append({
                         "text": f"[Imagem] {text}",
@@ -153,8 +161,7 @@ def _walk(element, segments: list, section_ref: list, source_file: str) -> None:
                     })
 
         elif tag == "summary":
-            # Título de toggle block do Notion
-            text = child.get_text(strip=True)
+            text = _clean(child.get_text(strip=True))
             if text:
                 section_ref[0] = text
                 segments.append({
@@ -165,7 +172,7 @@ def _walk(element, segments: list, section_ref: list, source_file: str) -> None:
                 })
 
         elif tag in {"p", "blockquote"}:
-            text = child.get_text(separator=" ", strip=True)
+            text = _clean(child.get_text(separator=" ", strip=True))
             if text:
                 segments.append({
                     "text": text,
@@ -177,7 +184,7 @@ def _walk(element, segments: list, section_ref: list, source_file: str) -> None:
         elif tag in {"ul", "ol"}:
             items: list[str] = []
             for li in child.find_all("li", recursive=False):
-                item_text = li.get_text(separator=" ", strip=True)
+                item_text = _clean(li.get_text(separator=" ", strip=True))
                 if item_text:
                     items.append(f"• {item_text}")
             if items:
