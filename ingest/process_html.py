@@ -14,6 +14,7 @@ import argparse
 import logging
 import os
 import re
+import requests
 import shutil
 import sys
 import tempfile
@@ -295,6 +296,30 @@ def segments_to_chunks(segments: list[dict]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Download de URL
+# ---------------------------------------------------------------------------
+
+def download_from_url(url: str) -> Path:
+    """Baixa arquivo de uma URL (Supabase Storage ou pública) para arquivo temporário."""
+    headers: dict = {}
+    supabase_url = os.environ.get("SUPABASE_URL", "")
+    if supabase_url and url.startswith(supabase_url):
+        headers["Authorization"] = f"Bearer {os.environ['SUPABASE_SERVICE_KEY']}"
+
+    logger.info("Baixando arquivo de URL…")
+    response = requests.get(url, headers=headers, timeout=300)
+    if response.status_code != 200:
+        logger.error("Falha ao baixar: HTTP %d — %s", response.status_code, response.text[:200])
+        sys.exit(1)
+
+    suffix = Path(url.split("?")[0]).suffix.lower() or ".zip"
+    tmp_file = Path(tempfile.mktemp(suffix=suffix))
+    tmp_file.write_bytes(response.content)
+    logger.info("Baixado: %.1f MB → %s", len(response.content) / 1e6, tmp_file.name)
+    return tmp_file
+
+
+# ---------------------------------------------------------------------------
 # Coleta de arquivos HTML
 # ---------------------------------------------------------------------------
 
@@ -333,9 +358,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Ingere HTML exportado do Notion no Knowledge Base RAG."
     )
-    parser.add_argument(
-        "--html-path", required=True,
+    source_group = parser.add_mutually_exclusive_group(required=True)
+    source_group.add_argument(
+        "--html-path",
         help="Arquivo .html, .zip ou diretório com HTMLs"
+    )
+    source_group.add_argument(
+        "--url",
+        help="URL do arquivo no Supabase Storage ou URL pública"
     )
     parser.add_argument("--name", required=True, help="Nome da fonte")
     parser.add_argument("--description", help="Descrição da fonte")
@@ -345,13 +375,18 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    html_path = Path(args.html_path)
-    if not html_path.exists():
-        logger.error("Caminho não encontrado: %s", html_path)
-        sys.exit(1)
-
+    downloaded_file: Path | None = None
     tmp_dir: Path | None = None
     try:
+        if args.url:
+            downloaded_file = download_from_url(args.url)
+            html_path = downloaded_file
+        else:
+            html_path = Path(args.html_path)
+            if not html_path.exists():
+                logger.error("Caminho não encontrado: %s", html_path)
+                sys.exit(1)
+
         html_files, tmp_dir = collect_html_files(html_path)
         if not html_files:
             logger.error("Nenhum arquivo HTML encontrado em %s", html_path)
@@ -391,6 +426,8 @@ def main() -> None:
         logger.info("Ingestão HTML concluída para '%s'.", args.name)
 
     finally:
+        if downloaded_file and downloaded_file.exists():
+            downloaded_file.unlink(missing_ok=True)
         if tmp_dir and tmp_dir.exists():
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
