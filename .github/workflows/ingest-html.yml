@@ -4,8 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       html_path:
-        description: 'Caminho do arquivo (ex: knowledge/html/playbook.zip)'
-        required: true
+        description: 'Caminho local (ex: knowledge/html/playbook.zip) — use OU url, não os dois'
+        required: false
+      url:
+        description: 'URL do arquivo no Supabase Storage ou URL pública'
+        required: false
       name:
         description: 'Nome da fonte (ex: Playbook da Coordenação BIM)'
         required: true
@@ -43,10 +46,17 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
-          python ingest/process_html.py \
-            --html-path "${{ github.event.inputs.html_path }}" \
-            --name "${{ github.event.inputs.name }}" \
-            --description "${{ github.event.inputs.description }}"
+          if [ -n "${{ github.event.inputs.url }}" ]; then
+            python ingest/process_html.py \
+              --url "${{ github.event.inputs.url }}" \
+              --name "${{ github.event.inputs.name }}" \
+              --description "${{ github.event.inputs.description }}"
+          else
+            python ingest/process_html.py \
+              --html-path "${{ github.event.inputs.html_path }}" \
+              --name "${{ github.event.inputs.name }}" \
+              --description "${{ github.event.inputs.description }}"
+          fi
 
       - name: Detect and ingest changed HTML/ZIP files (push trigger)
         if: github.event_name == 'push'
