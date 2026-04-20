@@ -1,0 +1,67 @@
+name: Ingest HTML (Notion Export)
+
+on:
+  workflow_dispatch:
+    inputs:
+      html_path:
+        description: 'Caminho do arquivo (ex: knowledge/html/playbook.zip)'
+        required: true
+      name:
+        description: 'Nome da fonte (ex: Playbook da Coordenação BIM)'
+        required: true
+      description:
+        description: 'Descrição da fonte'
+        required: false
+        default: 'Conteúdo exportado do Notion via HTML'
+  push:
+    paths:
+      - 'knowledge/html/**'
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: ingest/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r ingest/requirements.txt
+
+      - name: Ingest HTML (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python ingest/process_html.py \
+            --html-path "${{ github.event.inputs.html_path }}" \
+            --name "${{ github.event.inputs.name }}" \
+            --description "${{ github.event.inputs.description }}"
+
+      - name: Detect and ingest changed HTML/ZIP files (push trigger)
+        if: github.event_name == 'push'
+        env:
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          git diff --name-only HEAD~1 HEAD -- 'knowledge/html/' \
+            | grep -E '\.(html|htm|zip)$' \
+            | while IFS= read -r file; do
+                echo "=== Ingerindo: $file ==="
+                NAME=$(basename "$file" | sed 's/\.[^.]*$//' | tr '-_' ' ')
+                python ingest/process_html.py \
+                  --html-path "$file" \
+                  --name "$NAME" \
+                  --description "Exportado do Notion via HTML"
+              done
