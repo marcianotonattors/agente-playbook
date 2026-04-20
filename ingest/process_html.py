@@ -337,6 +337,12 @@ def collect_html_files(html_path: Path) -> tuple[list[Path], Path | None]:
         logger.info("Extraindo ZIP em %s", tmp)
         with zipfile.ZipFile(html_path, "r") as zf:
             zf.extractall(tmp)
+        # Extrai ZIPs aninhados (Notion exporta ZIP dentro de ZIP)
+        for inner_zip in list(tmp.rglob("*.zip")):
+            logger.info("Extraindo ZIP interno: %s", inner_zip.name)
+            with zipfile.ZipFile(inner_zip, "r") as zf:
+                zf.extractall(inner_zip.parent)
+            inner_zip.unlink()
         files = sorted(tmp.rglob("*.html")) + sorted(tmp.rglob("*.htm"))
         return files, tmp
 
