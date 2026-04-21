@@ -9,10 +9,6 @@ on:
       name:
         description: 'Nome da fonte (ex: Revit 2025 - Ajuda Oficial)'
         required: true
-      description:
-        description: 'Descrição da fonte (opcional)'
-        required: false
-        default: ''
       depth:
         description: 'Profundidade de crawling: 0=só a URL, 1=links diretos, 2=dois níveis'
         required: false
@@ -50,12 +46,10 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          INPUT_DESCRIPTION: ${{ github.event.inputs.description }}
         run: |
           python ingest/process_url.py \
             --url "${{ github.event.inputs.url }}" \
             --name "${{ github.event.inputs.name }}" \
-            --description "$INPUT_DESCRIPTION" \
             --depth "${{ github.event.inputs.depth }}" \
             --max-pages "${{ github.event.inputs.max_pages }}" \
             --delay "${{ github.event.inputs.delay }}"
