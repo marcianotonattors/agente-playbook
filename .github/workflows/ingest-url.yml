@@ -50,16 +50,12 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          INPUT_DESCRIPTION: ${{ github.event.inputs.description }}
         run: |
-          DESCRIPTION_ARG=""
-          if [ -n "${{ github.event.inputs.description }}" ]; then
-            DESCRIPTION_ARG='--description "${{ github.event.inputs.description }}"'
-          fi
-
           python ingest/process_url.py \
             --url "${{ github.event.inputs.url }}" \
             --name "${{ github.event.inputs.name }}" \
+            --description "$INPUT_DESCRIPTION" \
             --depth "${{ github.event.inputs.depth }}" \
             --max-pages "${{ github.event.inputs.max_pages }}" \
-            --delay "${{ github.event.inputs.delay }}" \
-            $DESCRIPTION_ARG
+            --delay "${{ github.event.inputs.delay }}"
